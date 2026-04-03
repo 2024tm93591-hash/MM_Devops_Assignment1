@@ -26,7 +26,7 @@ pipeline {
 
         stage('Run Container') {
             steps {
-                 bat 'docker stop $(docker ps -q) || echo "no container to stop"' 
+                 bat 'docker stop great_yalow || echo "no container to stop"' 
                /* bat 'docker rm gym-container 2>nul || echo "no container to remove"' */
                /* bat 'docker run --rm -d -p 5000:5000 --name gym-container gym-app' */
                 bat 'docker run -d -p 5000:5000 --name great_yalow gym-app'
