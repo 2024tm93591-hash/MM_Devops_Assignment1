@@ -29,7 +29,7 @@ pipeline {
                /* bat 'docker stop gym-container || echo "no container to stop"' */
                 bat 'docker rm gym-container 2>nul || echo "no container to remove"'
                /* bat 'docker run --rm -d -p 5000:5000 --name gym-container gym-app' */
-                bat 'docker run -d -p 5000:5000 --name gym-container gym-app
+                bat 'docker run -d -p 5000:5000 --name gym-container gym-app'
                 bat 'timeout /T 5 /NOBREAK'
                 bat 'curl -I http://localhost:5000'
             }
