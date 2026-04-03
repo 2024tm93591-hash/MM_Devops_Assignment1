@@ -37,8 +37,17 @@ pipeline {
 
     post {
         always {
-            bat 'docker stop gym-container || echo "no container to stop"'
-            bat 'docker rm gym-container || echo "no container to remove"'
+            script {
+                def statusStop = bat(returnStatus: true, script: 'docker stop gym-container')
+                if (statusStop != 0) {
+                    echo 'No gym-container to stop or stop returned non-zero; continuing.'
+                }
+
+                def statusRm = bat(returnStatus: true, script: 'docker rm gym-container')
+                if (statusRm != 0) {
+                    echo 'No gym-container to remove or rm returned non-zero; continuing.'
+                }
+            }
         }
         success {
             echo 'Pipeline finished successfully.'
