@@ -3,21 +3,15 @@ pipeline {
 
     stages {
 
-        stage('Clone Repository') {
-            steps {
-                git branch: 'main', url: 'https://github.com/2024tm93591-hash/MM_Devops_Assignment1.git'
-            }
-        }
-
         stage('Install Dependencies') {
             steps {
-                bat 'C:/Python313/Scripts/pip install -r requirements.txt'
+                bat 'python -m pip install -r requirements.txt'
             }
         }
 
         stage('Run Tests') {
             steps {
-                bat 'pytest'
+                bat 'python -m pytest'
             }
         }
 
