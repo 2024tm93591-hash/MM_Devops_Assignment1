@@ -27,12 +27,12 @@ pipeline {
         stage('Run Container') {
             steps {
                 script {
-                    def statusStop = bat(returnStatus: true, script: 'docker stop great_yalow')
+                    def statusStop = bat(returnStatus: true, script: 'docker stop gym-container')
                     if (statusStop != 0) {
-                        echo 'No great_yalow to stop or stop returned non-zero; continuing.'
+                        echo 'No gym-container to stop or stop returned non-zero; continuing.'
                     }
                 }
-                bat 'docker run -d -p 5000:5000 --name great_yalow gym-app'
+                bat 'docker run -d -p 5000:5000 --name gym-container gym-app'
                 
                 bat 'curl -I http://localhost:5000'
             }
@@ -43,7 +43,7 @@ pipeline {
         always {
             script {
             bat '''
-            docker rm -f great_yalow 2>nul || echo no container
+            docker rm -f gym-container 2>nul || echo no container
             '''
             }
         }
