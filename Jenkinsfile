@@ -31,20 +31,9 @@ pipeline {
                     bat 'docker run -d -p 5000:5000 --name gym-container gym-app'
                     bat 'ping -n 6 127.0.0.1 > nul'
                     bat 'curl -I http://localhost:5000'
-                        
-                    }       
-                          
-                /*script {
-                    def statusStop = bat(returnStatus: true, script: 'docker stop gym-container')
-                    if (statusStop != 0) {
-                        echo 'No gym-container to stop or stop returned non-zero; continuing.'
-                    }
+                     
+                    }         
                 }
-                bat 'docker run -d -p 5000:5000 --name gym-container gym-app'
-                
-                bat 'curl -I http://localhost:5000'
-            }*/
-            }
         }
 
     post {
@@ -61,5 +50,4 @@ pipeline {
             echo 'Pipeline failed; check the console output for error details.'
         }
     }
-
 }
