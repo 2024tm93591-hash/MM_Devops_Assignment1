@@ -5,7 +5,7 @@ pipeline {
 
         stage('Clone Repository') {
             steps {
-                git 'https://github.com/your-username/your-repo.git'
+                git 'https://github.com/2024tm93591-hash/MM_Devops_Assignment1.git'
             }
         }
 
