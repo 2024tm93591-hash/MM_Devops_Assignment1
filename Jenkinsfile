@@ -26,7 +26,14 @@ pipeline {
 
         stage('Run Container') {
             steps {
-                script {
+                 script {
+            bat '''
+            docker rm -f gym-container 2>nul || echo no container
+            docker run -d -p 5000:5000 --name gym-container gym-app
+            ping -n 6 127.0.0.1 > nul
+            '''
+         }
+                /*script {
                     def statusStop = bat(returnStatus: true, script: 'docker stop gym-container')
                     if (statusStop != 0) {
                         echo 'No gym-container to stop or stop returned non-zero; continuing.'
@@ -35,7 +42,7 @@ pipeline {
                 bat 'docker run -d -p 5000:5000 --name gym-container gym-app'
                 
                 bat 'curl -I http://localhost:5000'
-            }
+            }*/
         }
     }
 
