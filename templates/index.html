@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ACEest Gym Management</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 1000px; margin: auto; }
+    h1 { margin-bottom: 15px; }
+    section { border: 1px solid #ddd; padding: 12px; margin-bottom: 14px; border-radius: 6px; background: #fefefe; }
+    label { display: inline-block; width: 110px; margin-right: 8px; }
+    input, select, button { margin-bottom: 8px; }
+    .snackbar { background: #333; color: white; padding: 10px; position: fixed; bottom: 20px; right: 20px; border-radius: 4px; display:none; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align:left; }
+    th { background: #f4f4f4; }
+    small { color: #555; }
+  </style>
+</head>
+<body>
+  <h1>ACEest Gym Management UI</h1>
+  <div id="tokenInfo"><strong>Token:</strong> <span id="tokenValue">Not logged in</span></div>
+  <section>
+    <h2>Admin Login</h2>
+    <label>Username</label><input id="loginUsername" value="admin" /><br />
+    <label>Password</label><input id="loginPassword" type="password" value="admin123" /><br />
+    <button onclick="login()">Login</button>
+  </section>
+
+  <section>
+    <h2>Members</h2>
+    <label>Name</label><input id="memberName" /><br />
+    <label>Email</label><input id="memberEmail" /><br />
+    <label>Plan</label>
+    <select id="memberPlan">
+      <option value="">None</option>
+      <option value="Basic">Basic</option>
+      <option value="Premium">Premium</option>
+      <option value="Monthly">Monthly</option>
+      <option value="Yearly">Yearly</option>
+    </select><br />
+    <button onclick="createMember()">Add Member</button>
+    <button onclick="loadMembers()">Refresh Members</button>
+    <br />
+    <label>Search</label><input id="searchName" placeholder="name" />
+    <label>Plan</label><select id="filterPlan"><option value="">All</option><option>Basic</option><option>Premium</option><option>Monthly</option><option>Yearly</option></select>
+    <button onclick="loadMembers()">Filter</button>
+
+    <div id="membersList"></div>
+  </section>
+
+  <section>
+    <h2>Trainers</h2>
+    <label>Name</label><input id="trainerName" /><br />
+    <label>Email</label><input id="trainerEmail" /><br />
+    <button onclick="createTrainer()">Add Trainer</button>
+    <button onclick="loadTrainers()">Refresh Trainers</button>
+    <div id="trainerList"></div>
+  </section>
+
+  <section>
+    <h2>Assign Trainer / Plan</h2>
+    <label>Member ID</label><input id="assignMemberId" /><br />
+    <label>Trainer ID</label><input id="assignTrainerId" /><button onclick="assignTrainer()">Assign Trainer</button><br />
+    <label>Plan</label>
+    <select id="assignPlan">
+      <option>Basic</option><option>Premium</option><option>Monthly</option><option>Yearly</option>
+    </select>
+    <button onclick="assignPlan()">Assign Plan</button>
+  </section>
+
+  <section>
+    <h2>Attendance</h2>
+    <label>Member ID</label><input id="attendanceMemberId" />
+    <button onclick="markAttendance()">Mark Attendance</button>
+    <button onclick="viewAttendance()">View History</button>
+    <div id="attendanceHistory"></div>
+  </section>
+
+  <section>
+    <h2>BMI Calculator</h2>
+    <label>Height (m)</label><input id="height" type="number" step="0.01" /><br />
+    <label>Weight (kg)</label><input id="weight" type="number" step="0.1" /><br />
+    <button onclick="calculateBMI()">Calculate BMI</button>
+    <div id="bmiResult"></div>
+  </section>
+
+  <section>
+    <h2>Payments</h2>
+    <label>Member ID</label><input id="paymentMemberId" /><br />
+    <label>Amount</label><input id="paymentAmount" type="number" step="0.01" /><br />
+    <label>Status</label>
+    <select id="paymentStatus"><option value="paid">paid</option><option value="pending">pending</option></select><br />
+    <button onclick="createPayment()">Create Payment</button>
+    <button onclick="viewPayments()">View Payment History</button>
+    <div id="paymentHistory"></div>
+  </section>
+
+  <div class="snackbar" id="snackbar"></div>
+
+  <script>
+    const apiRoot = '';
+    let token = '';
+    function showSnackbar(msg) {
+      const el = document.getElementById('snackbar');
+      el.innerText = msg;
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 2500);
+    }
+
+    async function login() {
+      const username = document.getElementById('loginUsername').value;
+      const password = document.getElementById('loginPassword').value;
+      const res = await fetch(apiRoot + '/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      if (!res.ok) return showSnackbar('Login failed');
+      const data = await res.json();
+      token = data.token;
+      document.getElementById('tokenValue').innerText = token;
+      showSnackbar('Login successful');
+    }
+
+    function authHeaders() {
+      return token ? { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } : { 'Content-Type': 'application/json' };
+    }
+
+    async function createMember(){
+      const body = {
+        name: document.getElementById('memberName').value,
+        email: document.getElementById('memberEmail').value,
+        plan: document.getElementById('memberPlan').value || undefined
+      };
+      const res = await fetch(apiRoot + '/members', { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+      if (!res.ok) return showSnackbar('Add member failed');
+      await loadMembers();
+      showSnackbar('Member created');
+    }
+
+    async function loadMembers() {
+      const search = document.getElementById('searchName').value;
+      const plan = document.getElementById('filterPlan').value;
+      let url = '/members';
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (plan) params.append('plan', plan);
+      if ([...params].length) url += '?' + params;
+
+      const res = await fetch(apiRoot + url, { headers: authHeaders() });
+      if (!res.ok) return showSnackbar('Load members failed');
+      const arr = await res.json();
+
+      let html = '<table><thead><tr><th>Id</th><th>Name</th><th>Email</th><th>Plan</th><th>Trainer</th><th>Action</th></tr></thead><tbody>';
+      for (const m of arr) {
+        html += `<tr><td>${m.id}</td><td>${m.name}</td><td>${m.email || ''}</td><td>${m.plan || ''}</td><td>${m.trainer || ''}</td><td><button onclick="deleteMember(${m.id})">Delete</button></td></tr>`;
+      }
+      html += '</tbody></table>';
+      document.getElementById('membersList').innerHTML = html;
+    }
+
+    async function deleteMember(id) {
+      const res = await fetch(apiRoot + '/members/' + id, { method: 'DELETE', headers: authHeaders() });
+      if (!res.ok) return showSnackbar('Delete failed');
+      await loadMembers();
+      showSnackbar('Member deleted');
+    }
+
+    async function createTrainer() {
+      const body = { name: document.getElementById('trainerName').value, email: document.getElementById('trainerEmail').value };
+      const res = await fetch(apiRoot + '/trainers', { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+      if (!res.ok) return showSnackbar('Add trainer failed');
+      await loadTrainers();
+      showSnackbar('Trainer added');
+    }
+
+    async function loadTrainers(){
+      const res = await fetch(apiRoot + '/trainers', { headers: authHeaders() });
+      if (!res.ok) return showSnackbar('Load trainers failed');
+      const arr = await res.json();
+      let html = '<table><thead><tr><th>Id</th><th>Name</th><th>Email</th></tr></thead><tbody>';
+      for (const t of arr) html += `<tr><td>${t.id}</td><td>${t.name}</td><td>${t.email || ''}</td></tr>`;
+      html += '</tbody></table>';
+      document.getElementById('trainerList').innerHTML = html;
+    }
+
+    async function assignTrainer(){
+      const memberId = document.getElementById('assignMemberId').value;
+      const trainerId = document.getElementById('assignTrainerId').value;
+      const res = await fetch(apiRoot + `/members/${memberId}/assign_trainer`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify({ trainer_id: parseInt(trainerId) }) });
+      if (!res.ok) return showSnackbar('Assign trainer failed');
+      showSnackbar('Trainer assigned');
+      await loadMembers();
+    }
+
+    async function assignPlan(){
+      const memberId = document.getElementById('assignMemberId').value;
+      const plan = document.getElementById('assignPlan').value;
+      const res = await fetch(apiRoot + `/members/${memberId}/assign_plan`, { method: 'PUT', headers: authHeaders(), body: JSON.stringify({ plan }) });
+      if (!res.ok) return showSnackbar('Assign plan failed');
+      showSnackbar('Plan assigned');
+      await loadMembers();
+    }
+
+    async function markAttendance(){
+      const memberId = document.getElementById('attendanceMemberId').value;
+      const res = await fetch(apiRoot + '/attendance', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ member_id: parseInt(memberId) }) });
+      if (!res.ok) return showSnackbar('Mark attendance failed');
+      showSnackbar('Attendance marked');
+      await viewAttendance();
+    }
+
+    async function viewAttendance(){
+      const memberId = document.getElementById('attendanceMemberId').value;
+      const res = await fetch(apiRoot + `/attendance/${memberId}`, { headers: authHeaders() });
+      if (!res.ok) return showSnackbar('View attendance failed');
+      const arr = await res.json();
+      document.getElementById('attendanceHistory').innerHTML = '<pre>' + JSON.stringify(arr, null, 2) + '</pre>';
+    }
+
+    async function calculateBMI(){
+      const height = parseFloat(document.getElementById('height').value);
+      const weight = parseFloat(document.getElementById('weight').value);
+      const res = await fetch(apiRoot + '/bmi', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ height, weight }) });
+      if (!res.ok) return showSnackbar('BMI failed');
+      const data = await res.json();
+      document.getElementById('bmiResult').innerText = `BMI ${data.bmi} (${data.category})`;
+    }
+
+    async function createPayment(){
+      const member_id = parseInt(document.getElementById('paymentMemberId').value);
+      const amount = parseFloat(document.getElementById('paymentAmount').value);
+      const status = document.getElementById('paymentStatus').value;
+      const res = await fetch(apiRoot + '/payments', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ member_id, amount, status }) });
+      if (!res.ok) return showSnackbar('Payment creation failed');
+      showSnackbar('Payment created');
+      await viewPayments();
+    }
+
+    async function viewPayments(){
+      const memberId = document.getElementById('paymentMemberId').value;
+      const res = await fetch(apiRoot + `/payments/${memberId}`, { headers: authHeaders() });
+      if (!res.ok) return showSnackbar('Payments fetch failed');
+      const data = await res.json();
+      document.getElementById('paymentHistory').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+    }
+  </script>
+</body>
+</html>

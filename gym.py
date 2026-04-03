@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, g
+from flask import Flask, jsonify, request, g, render_template
 from flask_sqlalchemy import SQLAlchemy
 from functools import wraps
 from datetime import datetime
@@ -81,6 +81,11 @@ def login():
 @app.route('/')
 def home():
     return jsonify({'message': 'Welcome to ACEest Fitness & Gym API'})
+
+
+@app.route('/ui')
+def ui():
+    return render_template('index.html')
 
 
 @app.route('/members', methods=['GET', 'POST'])
