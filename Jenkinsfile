@@ -34,9 +34,7 @@ pipeline {
     }
 
     post {
-        always {
-            bat "docker rm -f gym-container 2>nul || echo no container"
-        }
+        
         success {
             echo "Pipeline finished successfully."
         }
