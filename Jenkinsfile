@@ -50,9 +50,8 @@ pipeline {
     post {
         always {
             script {
-            bat '''
-            docker rm -f gym-container 2>nul || echo no container
-            '''
+            bat 'docker rm -f gym-container 2>nul || echo no container'
+        
             }
         }
         success {
