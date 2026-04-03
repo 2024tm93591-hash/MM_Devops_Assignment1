@@ -33,7 +33,7 @@ pipeline {
                     }
                 }
                 bat 'docker run -d -p 5000:5000 --name great_yalow gym-app'
-                bat 'timeout /T 5 /NOBREAK'
+                
                 bat 'curl -I http://localhost:5000'
             }
         }
@@ -42,15 +42,9 @@ pipeline {
     post {
         always {
             script {
-                def statusStop = bat(returnStatus: true, script: 'docker stop great_yalow')
-                if (statusStop != 0) {
-                    echo 'No great_yalow to stop or stop returned non-zero; continuing.'
-                }
-
-                def statusRm = bat(returnStatus: true, script: 'docker rm great_yalow 2>nul')
-                if (statusRm != 0) {
-                    echo 'No great_yalow to remove or rm returned non-zero; continuing.'
-                }
+            bat '''
+            docker rm -f great_yalow 2>nul || echo no container
+            '''
             }
         }
         success {
