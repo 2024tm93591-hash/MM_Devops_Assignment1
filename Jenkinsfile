@@ -26,9 +26,10 @@ pipeline {
 
         stage('Run Container') {
             steps {
-                bat 'docker stop gym-container || echo "no container to stop"'
-                bat 'docker rm gym-container || echo "no container to remove"'
-                bat 'docker run --rm -d -p 5000:5000 --name gym-container gym-app'
+               /* bat 'docker stop gym-container || echo "no container to stop"' */
+                bat 'docker rm gym-container 2>nul || echo "no container to remove"'
+               /* bat 'docker run --rm -d -p 5000:5000 --name gym-container gym-app' */
+                bat 'docker run -d -p 5000:5000 --name gym-container gym-app
                 bat 'timeout /T 5 /NOBREAK'
                 bat 'curl -I http://localhost:5000'
             }
@@ -43,7 +44,7 @@ pipeline {
                     echo 'No gym-container to stop or stop returned non-zero; continuing.'
                 }
 
-                def statusRm = bat(returnStatus: true, script: 'docker rm gym-container')
+                def statusRm = bat(returnStatus: true, script: 'docker rm gym-container 2>nul')
                 if (statusRm != 0) {
                     echo 'No gym-container to remove or rm returned non-zero; continuing.'
                 }
