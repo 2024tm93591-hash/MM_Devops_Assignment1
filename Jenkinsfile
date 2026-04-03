@@ -61,4 +61,5 @@ pipeline {
             echo 'Pipeline failed; check the console output for error details.'
         }
     }
+
 }
