@@ -22,8 +22,11 @@ pipeline {
         }
         stage('Run Container') {
             steps {
-                bat 'docker run -d -p 5000:5000 gym-app'
-                }
+        bat '''
+        docker stop gym-container || echo no container
+        docker rm gym-container || echo no container
+        docker run -d -p 5000:5000 --name gym-container gym-app
+        '''
         }
     }
 }
