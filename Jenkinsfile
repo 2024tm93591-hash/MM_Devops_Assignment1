@@ -20,5 +20,10 @@ pipeline {
                 bat 'docker build -t gym-app .'
             }
         }
+        stage('Run Container') {
+            steps {
+                bat 'docker run -d -p 5000:5000 gym-app'
+                }
+        }
     }
 }
