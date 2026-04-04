@@ -80,7 +80,7 @@ def login():
 
 @app.route('/')
 def home():
-    return jsonify({'message': 'Welcome to ACEest Fitness & Gym API'})
+    return jsonify({'message': 'Welcome to ACEest Fitness & Gym Management System'})
 
 
 @app.route('/ui')
