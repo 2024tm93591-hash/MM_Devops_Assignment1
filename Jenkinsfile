@@ -26,7 +26,7 @@ pipeline {
 
         stage('Run Container') {
             steps {
-                bat "docker rm -f gym-container 2>nul || echo no container"
+               /* bat "docker rm -f gym-container 2>nul || echo no container" */
                 bat "docker run -d -p 5000:5000 --name gym-container gym-app"
                 bat "ping -n 6 127.0.0.1 > nul"
             }
