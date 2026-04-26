@@ -1,0 +1,94 @@
+# CANARY RELEASE
+# Strategy: Route 20% traffic to canary (1 replica) vs 80% to stable (4 replicas).
+# Both share the same Service selector (app: aceest-gym).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-gym-stable
+  namespace: default
+  labels:
+    app: aceest-gym
+    track: stable
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: aceest-gym
+      track: stable
+  template:
+    metadata:
+      labels:
+        app: aceest-gym
+        track: stable
+    spec:
+      containers:
+        - name: aceest-gym
+          image: 2024tm93591/aceest-gym:latest
+          ports:
+            - containerPort: 5000
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-gym-canary
+  namespace: default
+  labels:
+    app: aceest-gym
+    track: canary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aceest-gym
+      track: canary
+  template:
+    metadata:
+      labels:
+        app: aceest-gym
+        track: canary
+    spec:
+      containers:
+        - name: aceest-gym
+          image: IMAGE_PLACEHOLDER
+          ports:
+            - containerPort: 5000
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aceest-gym-canary-svc
+  namespace: default
+spec:
+  selector:
+    app: aceest-gym
+  type: LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
