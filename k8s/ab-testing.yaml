@@ -1,0 +1,186 @@
+# A/B Testing Deployment for ACEest Fitness & Gym
+# Variant A = control (stable image), Variant B = experiment (new image)
+# Traffic split via Nginx Ingress canary-by-header: X-Variant: B
+
+# -------------------------------------------------------------------
+# Variant A - Control (stable)
+# -------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-gym-variant-a
+  labels:
+    app: aceest-gym
+    variant: a
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: aceest-gym
+      variant: a
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: aceest-gym
+        variant: a
+    spec:
+      containers:
+      - name: aceest-gym
+        image: 2024tm93591/aceest-gym:stable
+        ports:
+        - containerPort: 5000
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+---
+# -------------------------------------------------------------------
+# Variant B - Experiment (new image)
+# -------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-gym-variant-b
+  labels:
+    app: aceest-gym
+    variant: b
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: aceest-gym
+      variant: b
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: aceest-gym
+        variant: b
+    spec:
+      containers:
+      - name: aceest-gym
+        image: IMAGE_PLACEHOLDER
+        ports:
+        - containerPort: 5000
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+---
+# -------------------------------------------------------------------
+# Service for Variant A
+# -------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: aceest-gym-variant-a-svc
+spec:
+  selector:
+    app: aceest-gym
+    variant: a
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5000
+  type: ClusterIP
+---
+# -------------------------------------------------------------------
+# Service for Variant B
+# -------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: aceest-gym-variant-b-svc
+spec:
+  selector:
+    app: aceest-gym
+    variant: b
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5000
+  type: ClusterIP
+---
+# -------------------------------------------------------------------
+# Default Ingress (routes all traffic to Variant A)
+# -------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aceest-gym-ab-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: aceest-gym-variant-a-svc
+            port:
+              number: 80
+---
+# -------------------------------------------------------------------
+# Canary Ingress (routes requests with X-Variant: B header to Variant B)
+# -------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aceest-gym-ab-canary-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-by-header: "X-Variant"
+    nginx.ingress.kubernetes.io/canary-by-header-value: "B"
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: aceest-gym-variant-b-svc
+            port:
+              number: 80
