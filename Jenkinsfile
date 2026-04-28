@@ -41,17 +41,19 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                    bat """
-                        sonar-scanner ^
-                          -Dsonar.projectKey=aceest-gym ^
-                          -Dsonar.projectVersion=%BUILD_NUMBER% ^
-                          -Dsonar.sources=. ^
-                          -Dsonar.exclusions=**\\tests\\**,**\\__pycache__\\**,**\\instance\\** ^
-                          -Dsonar.python.coverage.reportPaths=coverage.xml ^
-                          -Dsonar.host.url=%SONAR_HOST_URL% ^
-                          -Dsonar.token=%SONAR_TOKEN%
-                    """
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                        bat """
+                            sonar-scanner ^
+                              -Dsonar.projectKey=aceest-gym ^
+                              -Dsonar.projectVersion=%BUILD_NUMBER% ^
+                              -Dsonar.sources=. ^
+                              -Dsonar.exclusions=**\\tests\\**,**\\__pycache__\\** ^
+                              -Dsonar.python.coverage.reportPaths=coverage.xml ^
+                              -Dsonar.host.url=%SONAR_HOST_URL% ^
+                              -Dsonar.token=%SONAR_TOKEN%
+                        """
+                    }
                 }
             }
         }
