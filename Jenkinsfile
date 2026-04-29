@@ -14,46 +14,62 @@ pipeline {
         GCP_REGION      = 'us-central1'
         GKE_CLUSTER     = 'aceest-gym-cluster'
         SONAR_HOST_URL  = 'http://localhost:9000'
+        // Jenkins credentials IDs (configure in Jenkins → Manage Credentials)
+        // DOCKER_CREDS   : Username/Password for Docker Hub  (id: docker-hub-creds)
+        // SONAR_TOKEN    : Secret text for SonarQube token   (id: sonar-token)
+        // GCP_SA_KEY     : Secret file for GCP service account key (id: gcp-sa-key)
     }
 
     stages {
 
+        // ─────────────────────────────────────────────
+        // 1. CHECKOUT
+        // ─────────────────────────────────────────────
         stage('Checkout') {
-            steps { checkout scm }
+            steps {
+                checkout scm
+            }
         }
 
+        // ─────────────────────────────────────────────
+        // 2. INSTALL DEPENDENCIES
+        // ─────────────────────────────────────────────
         stage('Install Dependencies') {
             steps {
-                bat '%PYTHON% -m pip install --upgrade pip'
-                bat '%PYTHON% -m pip install -r requirements.txt'
-                bat '%PYTHON% -m pip install pytest pytest-cov'
+                bat "${PYTHON} -m pip install --upgrade pip"
+                bat "${PYTHON} -m pip install -r requirements.txt"
+                bat "${PYTHON} -m pip install pytest pytest-cov"
             }
         }
 
+        // ─────────────────────────────────────────────
+        // 3. UNIT TESTS WITH COVERAGE
+        // ─────────────────────────────────────────────
         stage('Run Tests') {
             steps {
-                bat '%PYTHON% -m pytest tests/ -v --tb=short --cov=. --cov-report=xml:coverage.xml --cov-report=term-missing'
+                bat "${PYTHON} -m pytest tests/ -v --tb=short --cov=. --cov-report=xml:coverage.xml --cov-report=term-missing"
             }
-            post { always { junit allowEmptyResults: true, testResults: '**/test-results.xml' } }
-        }
-
-        stage('SonarQube Analysis') {
-            steps {
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                        bat """%SONAR_SCANNER% ^
-                          -Dsonar.projectKey=aceest-gym ^
-                          -Dsonar.projectVersion=%BUILD_NUMBER% ^
-                          -Dsonar.sources=. ^
-                          -Dsonar.exclusions=**\\tests\\**,**\\__pycache__\\** ^
-                          -Dsonar.python.coverage.reportPaths=coverage.xml ^
-                          -Dsonar.host.url=%SONAR_HOST_URL% ^
-                          -Dsonar.token=%SONAR_TOKEN%"""
-                    }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: '**/test-results.xml'
                 }
             }
         }
 
+        // ─────────────────────────────────────────────
+        // 4. SONARQUBE STATIC CODE ANALYSIS
+        // ─────────────────────────────────────────────
+        stage('SonarQube Analysis') {
+            steps {
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                    bat "${SONAR_SCANNER} -Dsonar.projectKey=aceest-gym -Dsonar.projectName=ACEest-Fitness-Gym -Dsonar.projectVersion=${IMAGE_TAG} -Dsonar.sources=. -Dsonar.exclusions=**/tests/**,**/__pycache__/**,**/instance/** -Dsonar.python.coverage.reportPaths=coverage.xml -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.token=%SONAR_TOKEN%"
+                }
+            }
+        }
+
+        // ─────────────────────────────────────────────
+        // 5. BUILD DOCKER IMAGE
+        // ─────────────────────────────────────────────
         stage('Build Docker Image') {
             steps {
                 bat "docker build -t ${FULL_IMAGE} -t ${LATEST_IMAGE} ."
@@ -61,11 +77,17 @@ pipeline {
             }
         }
 
+        // ─────────────────────────────────────────────
+        // 6. PUSH TO DOCKER HUB
+        // ─────────────────────────────────────────────
         stage('Push to Docker Hub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds',
-                    usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    bat "docker login -u %DOCKER_USER% -p %DOCKER_PASS%"
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-hub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    bat "echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin"
                     bat "docker push ${FULL_IMAGE}"
                     bat "docker push ${LATEST_IMAGE}"
                     bat "docker logout"
@@ -73,84 +95,73 @@ pipeline {
             }
         }
 
+        // ─────────────────────────────────────────────
+        // 7. CONFIGURE KUBECTL FOR GKE
+        // ─────────────────────────────────────────────
         stage('Configure kubectl') {
             steps {
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GCP_KEY_FILE')]) {
-                        bat "%GCLOUD% auth activate-service-account --key-file=%GCP_KEY_FILE%"
-                        bat "%GCLOUD% config set project ${GCP_PROJECT}"
-                        bat "%GCLOUD% container clusters get-credentials ${GKE_CLUSTER} --region ${GCP_REGION} --project ${GCP_PROJECT}"
-                    }
+                withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GCP_KEY_FILE')]) {
+                    bat "${GCLOUD} auth activate-service-account --key-file=%GCP_KEY_FILE%"
+                    bat "${GCLOUD} config set project ${GCP_PROJECT}"
+                    bat "${GCLOUD} container clusters get-credentials ${GKE_CLUSTER} --region ${GCP_REGION} --project ${GCP_PROJECT}"
                 }
             }
         }
 
+        // ─────────────────────────────────────────────
+        // 8. ROLLING UPDATE — pool-rolling (us-central1-a)
+        //    2 replicas, nodeSelector: deploytype=rolling
+        // ─────────────────────────────────────────────
         stage('Deploy: Rolling Update') {
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    powershell """
-                        (Get-Content k8s/rolling-update.yaml) -replace 'IMAGE_PLACEHOLDER', '${env:FULL_IMAGE}' | Set-Content k8s/rolling-update.yaml
-                    """
+                    bat "powershell -Command \"(Get-Content k8s/rolling-update.yaml) -replace 'IMAGE_PLACEHOLDER', '${FULL_IMAGE}' | Set-Content k8s/rolling-update.yaml\""
                     bat "kubectl apply -f k8s/rolling-update.yaml"
                     bat "kubectl rollout status deployment/aceest-gym-rolling --timeout=300s"
                 }
             }
         }
 
+        // ─────────────────────────────────────────────
+        // 9. BLUE-GREEN — pool-bluegreen (us-central1-b)
+        //    blue=1 + green=1 replicas, nodeSelector: deploytype=bluegreen
+        // ─────────────────────────────────────────────
         stage('Deploy: Blue-Green') {
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    powershell """
-                        (Get-Content k8s/blue-green.yaml) -replace 'IMAGE_PLACEHOLDER', '${env:FULL_IMAGE}' | Set-Content k8s/blue-green.yaml
-                    """
+                    bat "powershell -Command \"(Get-Content k8s/blue-green.yaml) -replace 'IMAGE_PLACEHOLDER', '${FULL_IMAGE}' | Set-Content k8s/blue-green.yaml\""
                     bat "kubectl apply -f k8s/blue-green.yaml"
+                    bat "kubectl set selector svc/aceest-gym-bg-svc version=green"
                     bat "kubectl rollout status deployment/aceest-gym-green --timeout=300s"
                 }
             }
         }
 
+        // ─────────────────────────────────────────────
+        // 10. CANARY — pool-canary (us-central1-c)
+        //     stable=2 + canary=1 replicas, nodeSelector: deploytype=canary
+        // ─────────────────────────────────────────────
         stage('Deploy: Canary') {
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    powershell """
-                        (Get-Content k8s/canary.yaml) -replace 'IMAGE_PLACEHOLDER', '${env:FULL_IMAGE}' | Set-Content k8s/canary.yaml
-                    """
+                    bat "powershell -Command \"(Get-Content k8s/canary.yaml) -replace 'IMAGE_PLACEHOLDER', '${FULL_IMAGE}' | Set-Content k8s/canary.yaml\""
                     bat "kubectl apply -f k8s/canary.yaml"
                     bat "kubectl rollout status deployment/aceest-gym-canary --timeout=300s"
                 }
             }
         }
 
-        stage('Deploy: Shadow') {
-            steps {
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    powershell """
-                        (Get-Content k8s/shadow.yaml) -replace 'IMAGE_PLACEHOLDER', '${env:FULL_IMAGE}' | Set-Content k8s/shadow.yaml
-                    """
-                    bat "kubectl apply -f k8s/shadow.yaml"
-                    bat "kubectl rollout status deployment/aceest-gym-shadow --timeout=300s"
-                }
-            }
-        }
-
-        stage('Deploy: A/B Testing') {
-            steps {
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    powershell """
-                        (Get-Content k8s/ab-testing.yaml) -replace 'IMAGE_PLACEHOLDER', '${env:FULL_IMAGE}' | Set-Content k8s/ab-testing.yaml
-                    """
-                    bat "kubectl apply -f k8s/ab-testing.yaml"
-                    bat "kubectl rollout status deployment/aceest-gym-variant-b --timeout=300s"
-                }
-            }
-        }
-
     }
 
+    // ─────────────────────────────────────────────
+    // POST ACTIONS
+    // ─────────────────────────────────────────────
     post {
-        success { echo "[OK] Pipeline SUCCESS -- image ${FULL_IMAGE} deployed to GKE." }
+        success {
+            echo "SUCCESS — image ${FULL_IMAGE} deployed to GKE (Rolling Update -> Blue-Green -> Canary)."
+        }
         failure {
-            echo "[FAIL] Pipeline FAILED -- rolling back."
+            echo "FAILED — initiating rollback on rolling-update deployment."
             bat "kubectl rollout undo deployment/aceest-gym-rolling || exit 0"
         }
         always {
