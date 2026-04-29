@@ -1,4 +1,72 @@
 # ROLLING UPDATE DEPLOYMENT
+# Node pool: pool-rolling (zone: us-central1-a, label: deploytype=rolling)
+# 2 replicas, nodeSelector: deploytype=rolling
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-gym-rolling
+  namespace: default
+  labels:
+    app: aceest-gym
+    strategy: rolling-update
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: aceest-gym
+      strategy: rolling-update
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: aceest-gym
+        strategy: rolling-update
+    spec:
+      nodeSelector:
+        deploytype: rolling
+      containers:
+        - name: aceest-gym
+          image: IMAGE_PLACEHOLDER
+          ports:
+            - containerPort: 5000
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aceest-gym-rolling-svc
+  namespace: default
+spec:
+  selector:
+    app: aceest-gym
+    strategy: rolling-update
+  type: LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000# ROLLING UPDATE DEPLOYMENT
 # Strategy: Replace pods incrementally with zero downtime.
 apiVersion: apps/v1
 kind: Deployment
