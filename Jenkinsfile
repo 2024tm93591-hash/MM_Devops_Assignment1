@@ -3,6 +3,8 @@ pipeline {
 
     environment {
         PYTHON          = 'C:/python313/python.exe'
+        SONAR_SCANNER   = 'C:\\sonar-scanner\\bin\\sonar-scanner.bat'
+        GCLOUD          = '"C:\\Program Files (x86)\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.cmd"'
         DOCKER_HUB_USER = '2024tm93591'
         IMAGE_NAME      = 'aceest-gym'
         IMAGE_TAG       = "${BUILD_NUMBER}"
@@ -39,7 +41,7 @@ pipeline {
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                        bat """sonar-scanner ^
+                        bat """%SONAR_SCANNER% ^
                           -Dsonar.projectKey=aceest-gym ^
                           -Dsonar.projectVersion=%BUILD_NUMBER% ^
                           -Dsonar.sources=. ^
@@ -75,9 +77,9 @@ pipeline {
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GCP_KEY_FILE')]) {
-                        bat "gcloud auth activate-service-account --key-file=%GCP_KEY_FILE%"
-                        bat "gcloud config set project ${GCP_PROJECT}"
-                        bat "gcloud container clusters get-credentials ${GKE_CLUSTER} --region ${GCP_REGION} --project ${GCP_PROJECT}"
+                        bat "%GCLOUD% auth activate-service-account --key-file=%GCP_KEY_FILE%"
+                        bat "%GCLOUD% config set project ${GCP_PROJECT}"
+                        bat "%GCLOUD% container clusters get-credentials ${GKE_CLUSTER} --region ${GCP_REGION} --project ${GCP_PROJECT}"
                     }
                 }
             }
