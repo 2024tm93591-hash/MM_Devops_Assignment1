@@ -92,7 +92,7 @@ pipeline {
                         (Get-Content k8s/rolling-update.yaml) -replace 'IMAGE_PLACEHOLDER', '${env:FULL_IMAGE}' | Set-Content k8s/rolling-update.yaml
                     """
                     bat "kubectl apply -f k8s/rolling-update.yaml"
-                    bat "kubectl rollout status deployment/aceest-gym-rolling --timeout=120s"
+                    bat "kubectl rollout status deployment/aceest-gym-rolling --timeout=300s"
                 }
             }
         }
@@ -104,7 +104,7 @@ pipeline {
                         (Get-Content k8s/blue-green.yaml) -replace 'IMAGE_PLACEHOLDER', '${env:FULL_IMAGE}' | Set-Content k8s/blue-green.yaml
                     """
                     bat "kubectl apply -f k8s/blue-green.yaml"
-                    bat "kubectl rollout status deployment/aceest-gym-green --timeout=120s"
+                    bat "kubectl rollout status deployment/aceest-gym-green --timeout=300s"
                 }
             }
         }
@@ -116,7 +116,7 @@ pipeline {
                         (Get-Content k8s/canary.yaml) -replace 'IMAGE_PLACEHOLDER', '${env:FULL_IMAGE}' | Set-Content k8s/canary.yaml
                     """
                     bat "kubectl apply -f k8s/canary.yaml"
-                    bat "kubectl rollout status deployment/aceest-gym-canary --timeout=120s"
+                    bat "kubectl rollout status deployment/aceest-gym-canary --timeout=300s"
                 }
             }
         }
@@ -128,7 +128,7 @@ pipeline {
                         (Get-Content k8s/shadow.yaml) -replace 'IMAGE_PLACEHOLDER', '${env:FULL_IMAGE}' | Set-Content k8s/shadow.yaml
                     """
                     bat "kubectl apply -f k8s/shadow.yaml"
-                    bat "kubectl rollout status deployment/aceest-gym-shadow --timeout=120s"
+                    bat "kubectl rollout status deployment/aceest-gym-shadow --timeout=300s"
                 }
             }
         }
@@ -140,7 +140,7 @@ pipeline {
                         (Get-Content k8s/ab-testing.yaml) -replace 'IMAGE_PLACEHOLDER', '${env:FULL_IMAGE}' | Set-Content k8s/ab-testing.yaml
                     """
                     bat "kubectl apply -f k8s/ab-testing.yaml"
-                    bat "kubectl rollout status deployment/aceest-gym-ab --timeout=120s"
+                    bat "kubectl rollout status deployment/aceest-gym-variant-b --timeout=300s"
                 }
             }
         }
