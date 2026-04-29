@@ -1,6 +1,14 @@
+# ─────────────────────────────────────────────────────────────────────────────
 # CANARY RELEASE
-# Strategy: Route 20% traffic to canary (1 replica) vs 80% to stable (4 replicas).
-# Both share the same Service selector (app: aceest-gym).
+# Strategy: Route ~33% of traffic to the new version (canary) while 67%
+# stays on the stable version. Scale up canary only after validation.
+# Both deployments share the same Service selector label (app: aceest-gym).
+# Ratio is controlled by replica count: stable=2, canary=1 → 67/33 split.
+# Node pool: pool-canary (zone: us-central1-c, label: deploytype=canary)
+# Each pod lands on a dedicated canary node — isolated from rolling/bluegreen.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── STABLE (production, 2 replicas = ~67% traffic) ───────────────────────────
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -10,7 +18,7 @@ metadata:
     app: aceest-gym
     track: stable
 spec:
-  replicas: 4
+  replicas: 2
   selector:
     matchLabels:
       app: aceest-gym
@@ -21,6 +29,8 @@ spec:
         app: aceest-gym
         track: stable
     spec:
+      nodeSelector:
+        deploytype: canary
       containers:
         - name: aceest-gym
           image: 2024tm93591/aceest-gym:latest
@@ -40,6 +50,7 @@ spec:
               cpu: "500m"
               memory: "512Mi"
 ---
+# ── CANARY (new version, 1 replica = ~33% traffic) ───────────────────────────
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -60,6 +71,8 @@ spec:
         app: aceest-gym
         track: canary
     spec:
+      nodeSelector:
+        deploytype: canary
       containers:
         - name: aceest-gym
           image: IMAGE_PLACEHOLDER
@@ -79,6 +92,7 @@ spec:
               cpu: "500m"
               memory: "512Mi"
 ---
+# ── SHARED SERVICE (routes to both stable + canary) ───────────────────────────
 apiVersion: v1
 kind: Service
 metadata:
@@ -86,7 +100,7 @@ metadata:
   namespace: default
 spec:
   selector:
-    app: aceest-gym
+    app: aceest-gym        # matches BOTH stable and canary pods
   type: LoadBalancer
   ports:
     - protocol: TCP
