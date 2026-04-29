@@ -1,6 +1,6 @@
 # BLUE-GREEN DEPLOYMENT
-# Strategy: Run two identical deployments (blue=stable, green=new).
-# Switch service selector from blue to green after validation.
+# Node pool: pool-bluegreen (zone: us-central1-b, label: deploytype=bluegreen)
+# blue=1 replica (stable), green=1 replica (new), nodeSelector: deploytype=bluegreen
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -10,7 +10,7 @@ metadata:
     app: aceest-gym
     version: blue
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: aceest-gym
@@ -21,6 +21,8 @@ spec:
         app: aceest-gym
         version: blue
     spec:
+      nodeSelector:
+        deploytype: bluegreen
       containers:
         - name: aceest-gym
           image: 2024tm93591/aceest-gym:latest
@@ -49,7 +51,7 @@ metadata:
     app: aceest-gym
     version: green
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: aceest-gym
@@ -60,6 +62,8 @@ spec:
         app: aceest-gym
         version: green
     spec:
+      nodeSelector:
+        deploytype: bluegreen
       containers:
         - name: aceest-gym
           image: IMAGE_PLACEHOLDER
@@ -79,6 +83,8 @@ spec:
               cpu: "500m"
               memory: "512Mi"
 ---
+# Switch traffic: kubectl set selector svc/aceest-gym-bg-svc version=green
+# Rollback:       kubectl set selector svc/aceest-gym-bg-svc version=blue
 apiVersion: v1
 kind: Service
 metadata:
