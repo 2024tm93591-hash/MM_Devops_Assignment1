@@ -125,14 +125,17 @@ pipeline {
         // ─────────────────────────────────────────────
         // 9. BLUE-GREEN — pool-bluegreen (us-central1-b)
         //    blue=1 + green=1 replicas, nodeSelector: deploytype=bluegreen
+        //    Flow: apply → wait for green ready → switch selector to green
         // ─────────────────────────────────────────────
         stage('Deploy: Blue-Green') {
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     bat "powershell -Command \"(Get-Content k8s/blue-green.yaml) -replace 'IMAGE_PLACEHOLDER', '${FULL_IMAGE}' | Set-Content k8s/blue-green.yaml\""
                     bat "kubectl apply -f k8s/blue-green.yaml"
+                    // Wait for green to be fully healthy BEFORE switching traffic
+                    bat "kubectl rollout status deployment/aceest-gym-green --timeout=600s"
+                    // Zero-downtime cutover: point service at green
                     bat "kubectl set selector svc/aceest-gym-bg-svc version=green"
-                    bat "kubectl rollout status deployment/aceest-gym-green --timeout=300s"
                 }
             }
         }
