@@ -14,26 +14,14 @@ pipeline {
         GCP_REGION      = 'us-central1'
         GKE_CLUSTER     = 'aceest-gym-cluster'
         SONAR_HOST_URL  = 'http://localhost:9000'
-        // Jenkins credentials IDs (configure in Jenkins → Manage Credentials)
-        // DOCKER_CREDS   : Username/Password for Docker Hub  (id: docker-hub-creds)
-        // SONAR_TOKEN    : Secret text for SonarQube token   (id: sonar-token)
-        // GCP_SA_KEY     : Secret file for GCP service account key (id: gcp-sa-key)
     }
 
     stages {
 
-        // ─────────────────────────────────────────────
-        // 1. CHECKOUT
-        // ─────────────────────────────────────────────
         stage('Checkout') {
-            steps {
-                checkout scm
-            }
+            steps { checkout scm }
         }
 
-        // ─────────────────────────────────────────────
-        // 2. INSTALL DEPENDENCIES
-        // ─────────────────────────────────────────────
         stage('Install Dependencies') {
             steps {
                 bat "${PYTHON} -m pip install --upgrade pip"
@@ -42,9 +30,6 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────────
-        // 3. UNIT TESTS WITH COVERAGE
-        // ─────────────────────────────────────────────
         stage('Run Tests') {
             steps {
                 bat "${PYTHON} -m pytest tests/ -v --tb=short --cov=. --cov-report=xml:coverage.xml --cov-report=term-missing"
@@ -56,9 +41,6 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────────
-        // 4. SONARQUBE STATIC CODE ANALYSIS
-        // ─────────────────────────────────────────────
         stage('SonarQube Analysis') {
             steps {
                 withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
@@ -67,9 +49,6 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────────
-        // 5. BUILD DOCKER IMAGE
-        // ─────────────────────────────────────────────
         stage('Build Docker Image') {
             steps {
                 bat "docker build -t ${FULL_IMAGE} -t ${LATEST_IMAGE} ."
@@ -77,9 +56,6 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────────
-        // 6. PUSH TO DOCKER HUB
-        // ─────────────────────────────────────────────
         stage('Push to Docker Hub') {
             steps {
                 withCredentials([usernamePassword(
@@ -95,9 +71,6 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────────
-        // 7. CONFIGURE KUBECTL FOR GKE
-        // ─────────────────────────────────────────────
         stage('Configure kubectl') {
             steps {
                 withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GCP_KEY_FILE')]) {
@@ -108,10 +81,7 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────────
-        // 8. ROLLING UPDATE — pool-rolling (us-central1-a)
-        //    2 replicas, nodeSelector: deploytype=rolling
-        // ─────────────────────────────────────────────
+        // pool-rolling (us-central1-a) — 2 replicas, nodeSelector: deploytype=rolling
         stage('Deploy: Rolling Update') {
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
@@ -122,28 +92,21 @@ pipeline {
             }
         }
 
-        // ─────────────────────────────────────────────
-        // 9. BLUE-GREEN — pool-bluegreen (us-central1-b)
-        //    blue=1 + green=1 replicas, nodeSelector: deploytype=bluegreen
-        //    Flow: apply → wait for green ready → switch selector to green
-        // ─────────────────────────────────────────────
+        // pool-bluegreen (us-central1-b) — blue=1 + green=1, nodeSelector: deploytype=bluegreen
+        // Recreate strategy on green means: old pod terminates first, new pod starts.
+        // Traffic switches to green ONLY after rollout is confirmed healthy.
         stage('Deploy: Blue-Green') {
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     bat "powershell -Command \"(Get-Content k8s/blue-green.yaml) -replace 'IMAGE_PLACEHOLDER', '${FULL_IMAGE}' | Set-Content k8s/blue-green.yaml\""
                     bat "kubectl apply -f k8s/blue-green.yaml"
-                    // Wait for green to be fully healthy BEFORE switching traffic
                     bat "kubectl rollout status deployment/aceest-gym-green --timeout=600s"
-                    // Zero-downtime cutover: point service at green
                     bat "kubectl set selector svc/aceest-gym-bg-svc version=green"
                 }
             }
         }
 
-        // ─────────────────────────────────────────────
-        // 10. CANARY — pool-canary (us-central1-c)
-        //     stable=2 + canary=1 replicas, nodeSelector: deploytype=canary
-        // ─────────────────────────────────────────────
+        // pool-canary (us-central1-c) — stable=2 + canary=1, nodeSelector: deploytype=canary
         stage('Deploy: Canary') {
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
@@ -156,9 +119,6 @@ pipeline {
 
     }
 
-    // ─────────────────────────────────────────────
-    // POST ACTIONS
-    // ─────────────────────────────────────────────
     post {
         success {
             echo "SUCCESS — image ${FULL_IMAGE} deployed to GKE (Rolling Update -> Blue-Green -> Canary)."
